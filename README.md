@@ -37,11 +37,11 @@ using gemini model.
    ```
 
 3. **Set up environment variables:**
-   - create a new `.env` file and add your API keys and Supabase credentials:
-     ```
-     GEMINI_API_KEY=AIzaSyCLwVB7z5Ylj8tBpjwaa3htPzj-AcarSTY
-     GEMINI_MODEL=gemini-2.0-flash
-     ```
+- create a new `.env` file and add your API keys and Supabase credentials:
+    ```
+    GEMINI_API_KEY=AIzaSyCLwVB7z5Ylj8tBpjwaa3htPzj-AcarSTY
+    GEMINI_MODEL=gemini-2.0-flash
+    ```
 
 4. **Run the API locally:**
    ```bash
