@@ -48,24 +48,6 @@ def _find_text_payload(obj: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _fallback_parse(text: str) -> Dict[str, Any]:
-    # Lightweight heuristic when Gemini is unavailable
-    skills: List[str] = []
-    lower = text.lower()
-    for raw, normalized in {
-        "python": "Python",
-        "aws": "AWS",
-        "docker": "Docker",
-        "kubernetes": "Kubernetes",
-        "react": "React",
-        "node": "Node.js",
-        "sql": "SQL",
-        "java": "Java",
-    }.items():
-        if raw in lower:
-            skills.append(normalized)
-
-    return {"skills": skills, "experience": [], "education": [], "projects": []}
 
 
 def _ensure_shape(obj: Dict[str, Any]) -> Dict[str, Any]:
@@ -131,7 +113,7 @@ def _call_gemini(raw_text: str) -> Dict[str, Any]:
     api_key = os.getenv("GEMINI_API_KEY")
     model_id = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")  # Gemini 2.x model
     if not api_key or genai is None:
-        return _fallback_parse(raw_text)
+        return {"raw_text": raw_text}
 
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(model_id)
@@ -180,7 +162,7 @@ def _call_gemini(raw_text: str) -> Dict[str, Any]:
         if isinstance(data, dict):
             return _ensure_shape(data)
 
-    return _fallback_parse(raw_text)
+    return {"raw_text": raw_text}
 
 
 @mcp.tool()

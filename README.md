@@ -13,7 +13,7 @@ Into a more sturctured output:
   "education": [],
   "projects": []
 }
-using gemini model.
+using gemini model..
 
 ---
 **Clone the repository:**
@@ -42,6 +42,7 @@ using gemini model.
     GEMINI_API_KEY=AIzaSyCLwVB7z5Ylj8tBpjwaa3htPzj-AcarSTY
     GEMINI_MODEL=gemini-2.0-flash
     ```
+
 
 4. **Run the API locally:**
    ```bash
