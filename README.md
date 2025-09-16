@@ -37,9 +37,9 @@ using gemini model..
    ```
 
 3. **Set up environment variables:**
-- create a new `.env` file and add your API keys and Supabase credentials:
+- create a new `.env` file and add your API keys:
     ```
-    GEMINI_API_KEY=AIzaSyCLwVB7z5Ylj8tBpjwaa3htPzj-AcarSTY
+    GEMINI_API_KEY=
     GEMINI_MODEL=gemini-2.0-flash
     ```
 

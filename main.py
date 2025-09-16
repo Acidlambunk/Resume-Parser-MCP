@@ -1,7 +1,10 @@
 """FastMCP server exposing a resume parsing tool."""
 
 import json
+import logging
 import os
+import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -17,6 +20,38 @@ mcp = FastMCP(
     host="127.0.0.1",
     port=9000,
 )
+
+
+logger = logging.getLogger("resume_parser")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+
+
+def _load_env_file() -> None:
+    env_path = Path(__file__).resolve().parent / ".env"
+    if not env_path.exists():
+        logger.debug("No .env file found at %s", env_path)
+        return
+
+    try:
+        for raw_line in env_path.read_text().splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key:
+                continue
+            cleaned = value.strip().strip('"').strip("'")
+            os.environ.setdefault(key, cleaned)
+        logger.info("Loaded environment variables from %s", env_path)
+    except Exception as exc:
+        logger.warning("Failed to load .env file %s: %s", env_path, exc)
+
+
+_load_env_file()
 
 
 def _safe_json_loads(data: str) -> Any:
@@ -110,59 +145,70 @@ def _ensure_shape(obj: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _call_gemini(raw_text: str) -> Dict[str, Any]:
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     model_id = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")  # Gemini 2.x model
-    if not api_key or genai is None:
-        return {"raw_text": raw_text}
+    if not api_key:
+        logger.info("Gemini unavailable: missing GEMINI_API_KEY/GOOGLE_API_KEY")
+        return {"missing": "gemini"}
+    if genai is None:
+        logger.info("Gemini unavailable: google-generativeai package not installed")
+        return {"missing": "gemini"}
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_id)
+    try:
+        logger.info("Gemini available: using model %s", model_id)
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_id)
 
-    schema_hint = {
-        "skills": ["Python", "AWS", "Docker"],
-        "experience": [
-            {
-                "company": "Acme Inc",
-                "role": "Software Engineer",
-                "years": "2020-2023",
-            }
-        ],
-        "education": [
-            {
-                "degree": "BSc Computer Science",
-                "institution": "XYZ University",
-                "years": "2016-2020",
-            }
-        ],
-        "projects": [
-            {
-                "name": "Cool App",
-                "description": "Built X",
-                "tech": ["React", "FastAPI"],
-            }
-        ],
-    }
+        schema_hint = {
+            "skills": ["Python", "AWS", "Docker"],
+            "experience": [
+                {
+                    "company": "Acme Inc",
+                    "role": "Software Engineer",
+                    "years": "2020-2023",
+                }
+            ],
+            "education": [
+                {
+                    "degree": "BSc Computer Science",
+                    "institution": "XYZ University",
+                    "years": "2016-2020",
+                }
+            ],
+            "projects": [
+                {
+                    "name": "Cool App",
+                    "description": "Built X",
+                    "tech": ["React", "FastAPI"],
+                }
+            ],
+        }
 
-    prompt = (
-        "You are a resume extraction engine. Given resume content (as raw text or a JSON dump), "
-        "produce STRICT JSON only (no prose) matching this Python-like example shape: \n"
-        + json.dumps(schema_hint)
-        + "\nRules: return a minimal, accurate summary; omit fields if unknown by leaving empty strings; keep skills concise."
-    )
+        prompt = (
+            "You are a resume extraction engine. Given resume content (as raw text or a JSON dump), "
+            "produce STRICT JSON only (no prose) matching this Python-like example shape: \n"
+            + json.dumps(schema_hint)
+            + "\nRules: return a minimal, accurate summary; omit fields if unknown by leaving empty strings; keep skills concise."
+        )
 
-    request = f"INPUT:\n{raw_text}\n\nOUTPUT JSON:"
-    response = model.generate_content([prompt, request])
-    text = response.text if hasattr(response, "text") else ""
+        request = f"INPUT:\n{raw_text}\n\nOUTPUT JSON:"
+        response = model.generate_content([prompt, request])
+        text = response.text if hasattr(response, "text") else ""
 
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        candidate = text[start : end + 1]
-        data = _safe_json_loads(candidate)
-        if isinstance(data, dict):
-            return _ensure_shape(data)
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            candidate = text[start : end + 1]
+            data = _safe_json_loads(candidate)
+            if isinstance(data, dict):
+                logger.info("Gemini parse succeeded")
+                return _ensure_shape(data)
 
-    return {"raw_text": raw_text}
+        logger.info("Gemini response missing JSON payload; falling back")
+    except Exception as exc:  # pragma: no cover - network/LLM issues
+        logger.exception("Gemini call failed: %s", exc)
+
+    return {"missing": "gemini"}
 
 
 @mcp.tool()
